@@ -13,14 +13,25 @@ try:
                 k, v = line.strip().split('=', 1)
                 os.environ[k] = v
 except FileNotFoundError:
-    print("Warning: .env file not found.")
+    pass
 
 class MockApiGateway(BaseHTTPRequestHandler):
-    def do_GET(self):
+    def handle_request(self, method):
         parsed = urllib.parse.urlparse(self.path)
+        headers_dict = {k: v for k, v in self.headers.items()}
+        
+        body_data = "{}"
+        if method == "POST":
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                body_data = self.rfile.read(content_length).decode('utf-8')
+
         event = {
             "path": parsed.path,
-            "queryStringParameters": dict(urllib.parse.parse_qsl(parsed.query))
+            "httpMethod": method,
+            "queryStringParameters": dict(urllib.parse.parse_qsl(parsed.query)),
+            "headers": headers_dict,
+            "body": body_data
         }
         
         response = lambda_handler(event, None)
@@ -33,6 +44,12 @@ class MockApiGateway(BaseHTTPRequestHandler):
         if "body" in response:
             self.wfile.write(response["body"].encode("utf-8"))
 
-print("Aether Local Test Server running...")
-print("Ready for Spotify OAuth. Press Ctrl+C to stop.")
+    def do_GET(self):
+        self.handle_request("GET")
+
+    def do_POST(self):
+        self.handle_request("POST")
+
+print("Aether API Gateway Mock Server running at http://127.0.0.1:8000")
+print("Press Ctrl+C to safely terminate.")
 HTTPServer(('127.0.0.1', 8000), MockApiGateway).serve_forever()
