@@ -10,6 +10,20 @@ Globals:
     Environment:
       Variables:
         USERS_TABLE: !Ref AetherUsersTable
+        SPOTIFY_CLIENT_ID: !Ref SpotifyClientId
+        SPOTIFY_CLIENT_SECRET: !Ref SpotifyClientSecret
+        SPOTIFY_REDIRECT_URI: !Ref SpotifyRedirectUri
+
+Parameters:
+  SpotifyClientId:
+    Type: String
+    NoEcho: true
+  SpotifyClientSecret:
+    Type: String
+    NoEcho: true
+  SpotifyRedirectUri:
+    Type: String
+    Default: http://127.0.0.1:8000/callback
 
 Resources:
   AetherUsersTable:
@@ -34,4 +48,21 @@ Resources:
           Type: Api
           Properties:
             Path: /health
+            Method: get
+
+  SpotifyAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/src/
+      Handler: auth.lambda_handler
+      Events:
+        LoginApi:
+          Type: Api
+          Properties:
+            Path: /login
+            Method: get
+        CallbackApi:
+          Type: Api
+          Properties:
+            Path: /callback
             Method: get
