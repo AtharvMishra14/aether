@@ -9,9 +9,6 @@ import pymongo
 from vectorizer import generate_taste_vector
 from matcher import calculate_similarity
 
-# ==========================================
-# LOUD DEBUGGER & MONGODB INITIALIZATION
-# ==========================================
 MONGO_URI = os.environ.get("MONGO_URI")
 
 print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}")
@@ -23,13 +20,11 @@ else:
     try:
         client = pymongo.MongoClient(MONGO_URI)
         db = client["aether_db"]
-        # Force a ping to test the connection instantly
         client.admin.command('ping')
         print("--- DEBUG DB --- Connected to MongoDB Atlas successfully!")
     except Exception as e:
         print(f"--- DEBUG DB --- CONNECTION FAILED: {e}")
         db = None
-# ==========================================
 
 DUMMY_USERS = [
     {"id": "u1", "name": "Taylor", "traits": ["pop", "r&b", "hip-hop", "synthwave", "japanese-chill"]},
@@ -136,12 +131,11 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # Fetch exact Spotify Profile ID
         user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
         spotify_id = user_profile.get("id")
         username = user_profile.get("display_name", "Aether Explorer")
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists"
+        artists_url = "https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=15"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         top_artists = []
@@ -160,7 +154,6 @@ def lambda_handler(event, context):
             
         taste_vector = generate_taste_vector(unique_genres)
         
-        # Write to MongoDB Atlas
         if db is not None and spotify_id:
             try:
                 db.users.update_one(
@@ -204,11 +197,10 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # Get Current User ID
         user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
         current_spotify_id = user_profile.get("id")
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists"
+        artists_url = "https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=15"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         all_genres = []
@@ -222,11 +214,9 @@ def lambda_handler(event, context):
         current_vector = generate_taste_vector(unique_genres)
         results = []
         
-        # Try to pull REAL users from MongoDB
         if db is not None and current_spotify_id:
             query = {"spotify_id": {"$ne": current_spotify_id}}
             
-            # Exclude people we already swiped on
             try:
                 already_swiped = [doc["target_id"] for doc in db.interactions.find({"user_id": current_spotify_id})]
                 if already_swiped:
@@ -247,7 +237,6 @@ def lambda_handler(event, context):
             except Exception as e:
                 print(f"--- DEBUG DB --- Error fetching matches: {e}")
                 
-        # Fallback to dummy data if DB is empty or fails
         if not results:
             for user in DUMMY_USERS:
                 target_vector = generate_taste_vector(user["traits"])
@@ -302,7 +291,6 @@ def lambda_handler(event, context):
 
         mutual_match = False
         
-        # Save swipe to MongoDB
         if db is not None and current_spotify_id:
             try:
                 db.interactions.update_one(
@@ -322,7 +310,6 @@ def lambda_handler(event, context):
             except Exception as e:
                 print(f"--- DEBUG DB --- Error saving swipe: {e}")
         else:
-            # Fallback logic for dummy user test
             if action == "like" and target_id == "u1":
                 mutual_match = True
 
