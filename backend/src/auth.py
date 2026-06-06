@@ -83,15 +83,14 @@ def lambda_handler(event, context):
             with urllib.request.urlopen(req) as response:
                 token_info = json.loads(response.read().decode("utf-8"))
             
+            access_token = token_info.get("access_token")
+            react_app_url = f"http://localhost:5173/?token={access_token}"
+            
             return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
-                "body": json.dumps({
-                    "status": "success",
-                    "access_token": token_info.get("access_token"),
-                    "refresh_token": token_info.get("refresh_token")
-                })
+                "statusCode": 302,
+                "headers": {"Location": react_app_url}
             }
+            
         except urllib.error.URLError as e:
             return {
                 "statusCode": 500,

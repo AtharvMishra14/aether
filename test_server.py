@@ -16,6 +16,13 @@ except FileNotFoundError:
     pass
 
 class MockApiGateway(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200, "ok")
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        self.end_headers()
+
     def handle_request(self, method):
         parsed = urllib.parse.urlparse(self.path)
         headers_dict = {k: v for k, v in self.headers.items()}
