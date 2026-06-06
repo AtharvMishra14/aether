@@ -9,13 +9,12 @@ import pymongo
 from vectorizer import generate_taste_vector
 from matcher import calculate_similarity
 
-# Pulling URLs from Render Dashboard to bypass chat filters
-AUTH_BASE = os.environ.get("SPOTIFY_AUTH_BASE")
-API_BASE = os.environ.get("SPOTIFY_API_BASE")
-
 MONGO_URI = os.environ.get("MONGO_URI")
+AUTH_BASE = os.environ.get("SPOTIFY_AUTH")
+API_BASE = os.environ.get("SPOTIFY_API")
 
-print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}", flush=True)
+print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING'}", flush=True)
+print(f"--- DEBUG ENV --- AUTH: {'FOUND' if AUTH_BASE else 'MISSING'}, API: {'FOUND' if API_BASE else 'MISSING'}", flush=True)
 
 db = None
 if not MONGO_URI:
@@ -116,7 +115,8 @@ def lambda_handler(event, context):
                 "headers": {"Location": react_app_url}
             }
             
-        except urllib.error.URLError as e:
+        except Exception as e:
+            print(f"--- DEBUG --- Token Exchange Failed: {e}", flush=True)
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
