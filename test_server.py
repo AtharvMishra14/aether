@@ -57,6 +57,8 @@ class MockApiGateway(BaseHTTPRequestHandler):
     def do_POST(self):
         self.handle_request("POST")
 
-print("Aether API Gateway Mock Server running at http://127.0.0.1:8000")
+port = int(os.environ.get("PORT", 8000))
+
+print(f"Aether API Gateway Mock Server running on port {port}")
 print("Press Ctrl+C to safely terminate.")
-HTTPServer(('127.0.0.1', 8000), MockApiGateway).serve_forever()
+HTTPServer(('0.0.0.0', port), MockApiGateway).serve_forever()
