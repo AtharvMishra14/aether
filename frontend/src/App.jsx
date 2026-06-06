@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Play, X, Heart, Loader, Music, Send, ArrowLeft, MessageSquare } from 'lucide-react'
 import './App.css'
 
+// The Chameleon Variable: Uses Cloud URL if available, otherwise falls back to local testing
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 function App() {
   const [token, setToken] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -25,13 +28,13 @@ function App() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const profileRes = await fetch("http://127.0.0.1:8000/profile", {
+        const profileRes = await fetch(`${API_URL}/profile`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const profileData = await profileRes.json();
         setProfile(profileData);
 
-        const matchesRes = await fetch("http://127.0.0.1:8000/matches", {
+        const matchesRes = await fetch(`${API_URL}/matches`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const matchesData = await matchesRes.json();
@@ -45,11 +48,11 @@ function App() {
   }, [token])
 
   const handleLogin = () => {
-    window.location.href = "http://127.0.0.1:8000/login"
+    window.location.href = `${API_URL}/login`
   }
 
   const handleSwipe = async (action, targetId) => {
-    const response = await fetch("http://127.0.0.1:8000/connect", {
+    const response = await fetch(`${API_URL}/connect`, {
       method: "POST",
       headers: { 
         "Authorization": `Bearer ${token}`, 
