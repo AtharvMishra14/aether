@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Play, X, Heart, Loader, Music, Send, ArrowLeft, MessageSquare } from 'lucide-react'
 import './App.css'
 
-// The Chameleon Variable: Uses Cloud URL if available, otherwise falls back to local testing
+// Hardcoded to Render URL to bypass environment variable caching
 const API_URL = "https://aether-api-odgb.onrender.com";
 
 function App() {
+  // Debug line to verify code version in browser console
+  console.log("DEBUG: App is running. Target API is:", API_URL);
+
   const [token, setToken] = useState(null)
   const [profile, setProfile] = useState(null)
   const [matches, setMatches] = useState([])
