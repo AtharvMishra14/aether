@@ -4,7 +4,7 @@ import { Play, X, Heart, Loader, Music, Send, ArrowLeft, MessageSquare } from 'l
 import './App.css'
 
 // The Chameleon Variable: Uses Cloud URL if available, otherwise falls back to local testing
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = "https://aether-api-odgb.onrender.com";
 
 function App() {
   const [token, setToken] = useState(null)
