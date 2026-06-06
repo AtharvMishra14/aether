@@ -41,6 +41,7 @@ def lambda_handler(event, context):
             "state": state
         }
         
+        # FIXED: Official Spotify Auth Endpoint
         auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
         
         return {
@@ -67,6 +68,7 @@ def lambda_handler(event, context):
         auth_string = f"{client_id}:{client_secret}"
         auth_base64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
         
+        # FIXED: Official Spotify Token Endpoint
         token_url = "https://accounts.spotify.com/api/token"
         token_data = urllib.parse.urlencode({
             "grant_type": "authorization_code",
@@ -84,7 +86,10 @@ def lambda_handler(event, context):
                 token_info = json.loads(response.read().decode("utf-8"))
             
             access_token = token_info.get("access_token")
-            react_app_url = f"http://localhost:5173/?token={access_token}"
+            
+            # FIXED: Hardcoded Frontend URL to ensure production redirect works
+            frontend_url = "https://aether-sand-three.vercel.app"
+            react_app_url = f"{frontend_url}/?token={access_token}"
             
             return {
                 "statusCode": 302,
@@ -111,7 +116,8 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists?limit=10&time_range=medium_term"
+        # FIXED: Official Spotify API Endpoint for Top Artists
+        artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         top_artists = []
@@ -155,7 +161,8 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists?limit=10&time_range=medium_term"
+        # FIXED: Official Spotify API Endpoint for Top Artists
+        artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         all_genres = []
