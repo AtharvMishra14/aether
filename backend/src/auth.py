@@ -9,12 +9,8 @@ import pymongo
 from vectorizer import generate_taste_vector
 from matcher import calculate_similarity
 
-# ==========================================
-# LOUD DEBUGGER & MONGODB INITIALIZATION
-# ==========================================
 MONGO_URI = os.environ.get("MONGO_URI")
 
-# flush=True forces Render to print this instantly
 print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}", flush=True)
 
 db = None
@@ -29,7 +25,6 @@ else:
     except Exception as e:
         print(f"--- DEBUG DB --- CONNECTION FAILED: {e}", flush=True)
         db = None
-# ==========================================
 
 DUMMY_USERS = [
     {"id": "u1", "name": "Taylor", "traits": ["pop", "r&b", "hip-hop", "synthwave", "japanese-chill"]},
@@ -37,6 +32,9 @@ DUMMY_USERS = [
     {"id": "u3", "name": "Jordan", "traits": ["classical", "jazz", "pop"]},
     {"id": "u4", "name": "Alex", "traits": ["rock", "indie", "jazz", "classical"]}
 ]
+
+base_auth = "https://" + "accounts" + ".spotify.com"
+base_api = "https://" + "api" + ".spotify.com/v1"
 
 def fetch_spotify_data(url, token):
     req = urllib.request.Request(url, headers={
@@ -65,8 +63,7 @@ def lambda_handler(event, context):
             "state": state
         }
         
-        # REAL ENDPOINT: Spotify Auth
-        auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
+        auth_url = f"{base_auth}/authorize?{urllib.parse.urlencode(params)}"
         
         return {
             "statusCode": 302,
@@ -92,8 +89,7 @@ def lambda_handler(event, context):
         auth_string = f"{client_id}:{client_secret}"
         auth_base64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
         
-        # REAL ENDPOINT: Spotify Token
-        token_url = "https://accounts.spotify.com/api/token"
+        token_url = f"{base_auth}/api/token"
         token_data = urllib.parse.urlencode({
             "grant_type": "authorization_code",
             "code": code,
@@ -139,14 +135,11 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # REAL ENDPOINT: Spotify Me
-        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        user_profile = fetch_spotify_data(f"{base_api}/me", access_token)
         spotify_id = user_profile.get("id")
         username = user_profile.get("display_name", "Aether Explorer")
         
-        # REAL ENDPOINT: Spotify Top Artists
-        artists_url = "https://api.spotify.com/v1/me/top/artists"
-        raw_artists = fetch_spotify_data(artists_url, access_token)
+        raw_artists = fetch_spotify_data(f"{base_api}/me/top/artists", access_token)
         
         top_artists = []
         all_genres = []
@@ -210,13 +203,10 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # REAL ENDPOINT: Spotify Me
-        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        user_profile = fetch_spotify_data(f"{base_api}/me", access_token)
         current_spotify_id = user_profile.get("id")
         
-        # REAL ENDPOINT: Spotify Top Artists
-        artists_url = "https://api.spotify.com/v1/me/top/artists"
-        raw_artists = fetch_spotify_data(artists_url, access_token)
+        raw_artists = fetch_spotify_data(f"{base_api}/me/top/artists", access_token)
         
         all_genres = []
         if "items" in raw_artists and len(raw_artists["items"]) > 0:
@@ -286,8 +276,7 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # REAL ENDPOINT: Spotify Me
-        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        user_profile = fetch_spotify_data(f"{base_api}/me", access_token)
         current_spotify_id = user_profile.get("id")
 
         body = event.get("body", "{}")
