@@ -9,22 +9,27 @@ import pymongo
 from vectorizer import generate_taste_vector
 from matcher import calculate_similarity
 
+# ==========================================
+# LOUD DEBUGGER & MONGODB INITIALIZATION
+# ==========================================
 MONGO_URI = os.environ.get("MONGO_URI")
 
-print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}")
+# flush=True forces Render to print this instantly
+print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}", flush=True)
 
 db = None
 if not MONGO_URI:
-    print("CRITICAL ERROR: Render cannot see the MONGO_URI variable!")
+    print("CRITICAL ERROR: Render cannot see the MONGO_URI variable!", flush=True)
 else:
     try:
         client = pymongo.MongoClient(MONGO_URI)
         db = client["aether_db"]
         client.admin.command('ping')
-        print("--- DEBUG DB --- Connected to MongoDB Atlas successfully!")
+        print("--- DEBUG DB --- Connected to MongoDB Atlas successfully!", flush=True)
     except Exception as e:
-        print(f"--- DEBUG DB --- CONNECTION FAILED: {e}")
+        print(f"--- DEBUG DB --- CONNECTION FAILED: {e}", flush=True)
         db = None
+# ==========================================
 
 DUMMY_USERS = [
     {"id": "u1", "name": "Taylor", "traits": ["pop", "r&b", "hip-hop", "synthwave", "japanese-chill"]},
@@ -42,6 +47,7 @@ def fetch_spotify_data(url, token):
         with urllib.request.urlopen(req) as response:
             return json.loads(response.read().decode("utf-8"))
     except Exception as e:
+        print(f"--- DEBUG SPOTIFY --- Failed fetching from {url}: {e}", flush=True)
         return {"error": str(e)}
 
 def lambda_handler(event, context):
@@ -59,6 +65,7 @@ def lambda_handler(event, context):
             "state": state
         }
         
+        # REAL ENDPOINT: Spotify Auth
         auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
         
         return {
@@ -85,6 +92,7 @@ def lambda_handler(event, context):
         auth_string = f"{client_id}:{client_secret}"
         auth_base64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
         
+        # REAL ENDPOINT: Spotify Token
         token_url = "https://accounts.spotify.com/api/token"
         token_data = urllib.parse.urlencode({
             "grant_type": "authorization_code",
@@ -131,11 +139,13 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
+        # REAL ENDPOINT: Spotify Me
         user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
         spotify_id = user_profile.get("id")
         username = user_profile.get("display_name", "Aether Explorer")
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=15"
+        # REAL ENDPOINT: Spotify Top Artists
+        artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         top_artists = []
@@ -169,8 +179,11 @@ def lambda_handler(event, context):
                     },
                     upsert=True
                 )
+                print(f"--- DEBUG DB --- Saved profile for {username} to Atlas!", flush=True)
             except Exception as e:
-                print(f"--- DEBUG DB --- Failed to save profile: {e}")
+                print(f"--- DEBUG DB --- Failed to save profile: {e}", flush=True)
+        else:
+            print(f"--- DEBUG DB --- SKIPPED DB SAVE! db: {db}, spotify_id: {spotify_id}", flush=True)
         
         return {
             "statusCode": 200,
@@ -197,10 +210,12 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
+        # REAL ENDPOINT: Spotify Me
         user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
         current_spotify_id = user_profile.get("id")
         
-        artists_url = "https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=15"
+        # REAL ENDPOINT: Spotify Top Artists
+        artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         all_genres = []
@@ -235,7 +250,7 @@ def lambda_handler(event, context):
                         "shared_traits": shared_traits
                     })
             except Exception as e:
-                print(f"--- DEBUG DB --- Error fetching matches: {e}")
+                print(f"--- DEBUG DB --- Error fetching matches: {e}", flush=True)
                 
         if not results:
             for user in DUMMY_USERS:
@@ -270,6 +285,8 @@ def lambda_handler(event, context):
             }
             
         access_token = auth_header.split(" ")[1]
+        
+        # REAL ENDPOINT: Spotify Me
         user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
         current_spotify_id = user_profile.get("id")
 
@@ -308,7 +325,7 @@ def lambda_handler(event, context):
                     if reverse_swipe:
                         mutual_match = True
             except Exception as e:
-                print(f"--- DEBUG DB --- Error saving swipe: {e}")
+                print(f"--- DEBUG DB --- Error saving swipe: {e}", flush=True)
         else:
             if action == "like" and target_id == "u1":
                 mutual_match = True
