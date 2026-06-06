@@ -4,9 +4,32 @@ import urllib.parse
 import urllib.request
 import base64
 import secrets
+import pymongo
 
 from vectorizer import generate_taste_vector
 from matcher import calculate_similarity
+
+# ==========================================
+# LOUD DEBUGGER & MONGODB INITIALIZATION
+# ==========================================
+MONGO_URI = os.environ.get("MONGO_URI")
+
+print(f"\n--- DEBUG DB --- MONGO_URI is: {'FOUND' if MONGO_URI else 'MISSING IN RENDER'}")
+
+db = None
+if not MONGO_URI:
+    print("CRITICAL ERROR: Render cannot see the MONGO_URI variable!")
+else:
+    try:
+        client = pymongo.MongoClient(MONGO_URI)
+        db = client["aether_db"]
+        # Force a ping to test the connection instantly
+        client.admin.command('ping')
+        print("--- DEBUG DB --- Connected to MongoDB Atlas successfully!")
+    except Exception as e:
+        print(f"--- DEBUG DB --- CONNECTION FAILED: {e}")
+        db = None
+# ==========================================
 
 DUMMY_USERS = [
     {"id": "u1", "name": "Taylor", "traits": ["pop", "r&b", "hip-hop", "synthwave", "japanese-chill"]},
@@ -41,7 +64,6 @@ def lambda_handler(event, context):
             "state": state
         }
         
-        # FIXED: Official Spotify Auth Endpoint
         auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
         
         return {
@@ -68,7 +90,6 @@ def lambda_handler(event, context):
         auth_string = f"{client_id}:{client_secret}"
         auth_base64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
         
-        # FIXED: Official Spotify Token Endpoint
         token_url = "https://accounts.spotify.com/api/token"
         token_data = urllib.parse.urlencode({
             "grant_type": "authorization_code",
@@ -87,7 +108,6 @@ def lambda_handler(event, context):
             
             access_token = token_info.get("access_token")
             
-            # FIXED: Hardcoded Frontend URL to ensure production redirect works
             frontend_url = "https://aether-sand-three.vercel.app"
             react_app_url = f"{frontend_url}/?token={access_token}"
             
@@ -116,7 +136,11 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # FIXED: Official Spotify API Endpoint for Top Artists
+        # Fetch exact Spotify Profile ID
+        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        spotify_id = user_profile.get("id")
+        username = user_profile.get("display_name", "Aether Explorer")
+        
         artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
@@ -136,11 +160,30 @@ def lambda_handler(event, context):
             
         taste_vector = generate_taste_vector(unique_genres)
         
+        # Write to MongoDB Atlas
+        if db is not None and spotify_id:
+            try:
+                db.users.update_one(
+                    {"spotify_id": spotify_id},
+                    {
+                        "$set": {
+                            "spotify_id": spotify_id,
+                            "name": username,
+                            "traits": unique_genres,
+                            "top_artists": top_artists,
+                            "taste_vector": taste_vector
+                        }
+                    },
+                    upsert=True
+                )
+            except Exception as e:
+                print(f"--- DEBUG DB --- Failed to save profile: {e}")
+        
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
             "body": json.dumps({
-                "username": "Aether Explorer",
+                "username": username,
                 "profile_status": profile_status,
                 "top_artists": top_artists,
                 "genres": unique_genres,
@@ -161,12 +204,14 @@ def lambda_handler(event, context):
             
         access_token = auth_header.split(" ")[1]
         
-        # FIXED: Official Spotify API Endpoint for Top Artists
+        # Get Current User ID
+        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        current_spotify_id = user_profile.get("id")
+        
         artists_url = "https://api.spotify.com/v1/me/top/artists"
         raw_artists = fetch_spotify_data(artists_url, access_token)
         
         all_genres = []
-        
         if "items" in raw_artists and len(raw_artists["items"]) > 0:
             for item in raw_artists["items"]:
                 all_genres.extend(item.get("genres", []))
@@ -177,17 +222,44 @@ def lambda_handler(event, context):
         current_vector = generate_taste_vector(unique_genres)
         results = []
         
-        for user in DUMMY_USERS:
-            target_vector = generate_taste_vector(user["traits"])
-            score = calculate_similarity(current_vector, target_vector)
-            shared_traits = list(set(unique_genres) & set(user["traits"]))
+        # Try to pull REAL users from MongoDB
+        if db is not None and current_spotify_id:
+            query = {"spotify_id": {"$ne": current_spotify_id}}
             
-            results.append({
-                "user_id": user["id"],
-                "name": user["name"],
-                "match_percentage": round(score * 100, 2),
-                "shared_traits": shared_traits
-            })
+            # Exclude people we already swiped on
+            try:
+                already_swiped = [doc["target_id"] for doc in db.interactions.find({"user_id": current_spotify_id})]
+                if already_swiped:
+                    query["spotify_id"]["$nin"] = already_swiped
+                    
+                real_users = list(db.users.find(query))
+                
+                for user in real_users:
+                    score = calculate_similarity(current_vector, user.get("taste_vector", []))
+                    shared_traits = list(set(unique_genres) & set(user.get("traits", [])))
+                    
+                    results.append({
+                        "user_id": user["spotify_id"],
+                        "name": user.get("name", "Explorer"),
+                        "match_percentage": round(score * 100, 2),
+                        "shared_traits": shared_traits
+                    })
+            except Exception as e:
+                print(f"--- DEBUG DB --- Error fetching matches: {e}")
+                
+        # Fallback to dummy data if DB is empty or fails
+        if not results:
+            for user in DUMMY_USERS:
+                target_vector = generate_taste_vector(user["traits"])
+                score = calculate_similarity(current_vector, target_vector)
+                shared_traits = list(set(unique_genres) & set(user["traits"]))
+                
+                results.append({
+                    "user_id": user["id"],
+                    "name": user["name"],
+                    "match_percentage": round(score * 100, 2),
+                    "shared_traits": shared_traits
+                })
             
         results.sort(key=lambda x: x["match_percentage"], reverse=True)
         
@@ -207,6 +279,10 @@ def lambda_handler(event, context):
                 "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
                 "body": json.dumps({"error": "Unauthorized: Missing token"})
             }
+            
+        access_token = auth_header.split(" ")[1]
+        user_profile = fetch_spotify_data("https://api.spotify.com/v1/me", access_token)
+        current_spotify_id = user_profile.get("id")
 
         body = event.get("body", "{}")
         try:
@@ -225,8 +301,30 @@ def lambda_handler(event, context):
             }
 
         mutual_match = False
-        if action == "like" and target_id == "u1":
-            mutual_match = True
+        
+        # Save swipe to MongoDB
+        if db is not None and current_spotify_id:
+            try:
+                db.interactions.update_one(
+                    {"user_id": current_spotify_id, "target_id": target_id},
+                    {"$set": {"user_id": current_spotify_id, "target_id": target_id, "action": action}},
+                    upsert=True
+                )
+                
+                if action == "like":
+                    reverse_swipe = db.interactions.find_one({
+                        "user_id": target_id,
+                        "target_id": current_spotify_id,
+                        "action": "like"
+                    })
+                    if reverse_swipe:
+                        mutual_match = True
+            except Exception as e:
+                print(f"--- DEBUG DB --- Error saving swipe: {e}")
+        else:
+            # Fallback logic for dummy user test
+            if action == "like" and target_id == "u1":
+                mutual_match = True
 
         return {
             "statusCode": 200,
